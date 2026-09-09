@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>해양기상 종합 관측 대시보드 | Marine Weather Live</title>
+  
+  <!-- Google Fonts & Pretendard -->
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  
+  <!-- Leaflet Map CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- TOP HEADER -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-icon">
+          <i class="fa-solid fa-water"></i>
+        </div>
+        <div class="brand-text">
+          <div class="brand-title">해양기상 종합 관측 대시보드</div>
+          <div class="brand-sub">국립해양측위정보원(NMPNT) 해양기상신호표지 실시간 관측망</div>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <div class="live-badge">
+          <span class="pulse-dot"></span>
+          <span class="live-text">실시간 연동 중</span>
+        </div>
+        <div class="update-clock">
+          <i class="fa-regular fa-clock"></i>
+          <span id="lastUpdateText">갱신 대기 중</span>
+        </div>
+        <div class="refresh-box">
+          <select id="autoRefreshSelect" class="styled-select" title="자동 새로고침 주기">
+            <option value="0">자동 갱신 꺼짐</option>
+            <option value="60">1분 주기</option>
+            <option value="300" selected>5분 주기</option>
+            <option value="600">10분 주기</option>
+          </select>
+          <button id="btnRefresh" class="btn-refresh" title="즉시 새로고침">
+            <i class="fa-solid fa-arrows-rotate"></i>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- KPI STATS BAR -->
+    <section class="kpi-bar">
+      <div class="kpi-card">
+        <div class="kpi-icon icon-cyan"><i class="fa-solid fa-tower-observation"></i></div>
+        <div class="kpi-content">
+          <div class="kpi-label">전국 해양관측소</div>
+          <div class="kpi-value"><span id="kpiTotalStations">200</span><small>개소</small></div>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-icon icon-blue"><i class="fa-solid fa-water"></i></div>
+        <div class="kpi-content">
+          <div class="kpi-label">선택 지점 유의파고</div>
+          <div class="kpi-value"><span id="kpiWaveHeight">--</span><small>m</small></div>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-icon icon-teal"><i class="fa-solid fa-temperature-three-quarters"></i></div>
+        <div class="kpi-content">
+          <div class="kpi-label">선택 지점 해수 수온</div>
+          <div class="kpi-value"><span id="kpiWaterTemp">--</span><small>℃</small></div>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-icon icon-amber"><i class="fa-solid fa-wind"></i></div>
+        <div class="kpi-content">
+          <div class="kpi-label">선택 지점 해상 풍속</div>
+          <div class="kpi-value"><span id="kpiWindSpeed">--</span><small>m/s</small></div>
+        </div>
+      </div>
+
+      <div class="kpi-card">
+        <div class="kpi-icon icon-purple"><i class="fa-solid fa-wave-square"></i></div>
+        <div class="kpi-content">
+          <div class="kpi-label">파고 관측 부이</div>
+          <div class="kpi-value"><span id="kpiWaveBuoys">19</span><small>개소</small></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MAIN BODY -->
+    <div class="main-layout">
+      <!-- LEFT SIDEBAR: STATIONS LIST & FILTERS -->
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+          <div class="sidebar-title">
+            <i class="fa-solid fa-list-check"></i> 관측소 목록 (<span id="stationCount">200</span>)
+          </div>
+        </div>
+
+        <!-- PROVIDER TABS -->
+        <div class="provider-tabs" id="providerTabs">
+          <button class="provider-tab active" data-provider="ALL">전체 <span class="tab-badge" id="badgeAll">200</span></button>
+          <button class="provider-tab" data-provider="KMA"><i class="fa-solid fa-water"></i> 기상청 부이 <span class="tab-badge badge-kma" id="badgeKma">17</span></button>
+          <button class="provider-tab" data-provider="KHOA">해양조사원 <span class="tab-badge" id="badgeKhoa">7</span></button>
+          <button class="provider-tab" data-provider="NMPNT">항로표지 <span class="tab-badge" id="badgeNmpnt">176</span></button>
+        </div>
+
+        <!-- SEARCH INPUT -->
+        <div class="search-box">
+          <i class="fa-solid fa-magnifying-glass search-icon"></i>
+          <input type="text" id="searchInput" placeholder="관측소명, 부이 번호 또는 MMSI 검색..." autocomplete="off">
+          <button id="btnClearSearch" class="btn-clear" style="display:none;"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <!-- REGION FILTER CHIPS -->
+        <div class="region-filters-wrapper">
+          <div class="region-chips" id="regionChips">
+            <button class="chip active" data-mmaf="ALL">전체 해역</button>
+            <button class="chip" data-mmaf="KMA">기상청부이</button>
+            <button class="chip" data-mmaf="KHOA">해양조사원</button>
+            <button class="chip" data-mmaf="101">부산청</button>
+            <button class="chip" data-mmaf="102">인천청</button>
+            <button class="chip" data-mmaf="103">여수청</button>
+            <button class="chip" data-mmaf="104">울산청</button>
+            <button class="chip" data-mmaf="105">대산청</button>
+            <button class="chip" data-mmaf="106">평택청</button>
+            <button class="chip" data-mmaf="107">목포청</button>
+            <button class="chip" data-mmaf="108">군산청</button>
+            <button class="chip" data-mmaf="109">마산청</button>
+            <button class="chip" data-mmaf="110">포항청</button>
+            <button class="chip" data-mmaf="111">동해청</button>
+            <button class="chip" data-mmaf="112">제주단</button>
+            <button class="chip" data-mmaf="113">진도소</button>
+          </div>
+        </div>
+
+        <!-- STATIONS SCROLL LIST -->
+        <div class="station-list" id="stationList">
+          <div class="loading-state">
+            <i class="fa-solid fa-spinner fa-spin"></i> 관측소 목록 로딩 중...
+          </div>
+        </div>
+      </aside>
+
+      <!-- CENTER MAP CONTAINER -->
+      <main class="map-container">
+        <div id="map"></div>
+        <div class="map-overlay-controls">
+          <button id="btnResetView" class="map-tool-btn" title="전국 연안 전체 보기">
+            <i class="fa-solid fa-expand"></i> 전체 지도
+          </button>
+          <div class="map-legend">
+            <span class="legend-item"><span class="legend-dot dot-kma"></span> 기상청 해양부이 (파고)</span>
+            <span class="legend-item"><span class="legend-dot dot-khoa"></span> 해양조사원</span>
+            <span class="legend-item"><span class="legend-dot dot-active"></span> 항로표지</span>
+          </div>
+        </div>
+      </main>
+
+      <!-- RIGHT DETAIL PANEL (SLIDE-OVER DRAWER) -->
+      <aside class="detail-panel" id="detailPanel">
+        <div class="detail-header">
+          <div class="detail-title-wrap">
+            <div class="detail-badge-group">
+              <span class="detail-badge badge-provider" id="detailProvider">기상청</span>
+              <span class="detail-badge" id="detailMmafNm">해역</span>
+            </div>
+            <h2 class="detail-name" id="detailStationNm">관측소를 선택해 주세요</h2>
+            <div class="detail-meta">
+              <span>식별코드: <strong id="detailMmsi">--</strong></span>
+              <span>위치: <span id="detailCoords">--</span></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-content" id="detailContent">
+          <!-- OBSERVATION TIME -->
+          <div class="obs-time-card">
+            <i class="fa-regular fa-clock"></i>
+            <span>최근 관측 시각: <strong id="obsTime">--</strong></span>
+          </div>
+
+          <!-- WAVE CARD (파고 및 파랑 특성) -->
+          <div class="weather-card wave-card" id="waveCard">
+            <div class="card-head">
+              <span><i class="fa-solid fa-water"></i> 실시간 파고 및 파랑 특성 (Wave)</span>
+              <span class="wave-level-badge level-calm" id="waveLevelBadge">안전</span>
+            </div>
+            <div class="wave-card-body">
+              <div class="wave-main-row">
+                <div class="wave-main-stat">
+                  <div class="wave-main-val">
+                    <span class="wave-num" id="valWaveHeight">--</span>
+                    <span class="wave-unit">m</span>
+                  </div>
+                  <div class="wave-main-desc">유의파고 (Significant Wave)</div>
+                </div>
+                <div class="wave-sub-grid">
+                  <div class="wave-sub-item">
+                    <span class="sub-label">최대파고</span>
+                    <span class="sub-val"><strong id="valWaveMax">--</strong> m</span>
+                  </div>
+                  <div class="wave-sub-item">
+                    <span class="sub-label">파주기</span>
+                    <span class="sub-val"><strong id="valWavePeriod">--</strong> s</span>
+                  </div>
+                  <div class="wave-sub-item">
+                    <span class="sub-label">파향</span>
+                    <span class="sub-val"><strong id="valWaveDrc">--</strong></span>
+                  </div>
+                </div>
+              </div>
+              <div class="wave-note" id="waveNote" style="display: none;">
+                <i class="fa-solid fa-circle-info"></i> 해당 관측소는 파고 센서 미지원 (기상청 해양부이 선택 시 실시간 파고 제공)
+              </div>
+            </div>
+          </div>
+
+          <!-- COMPASS & WIND GAUGE -->
+          <div class="weather-card compass-card">
+            <div class="card-head"><i class="fa-solid fa-compass"></i> 실시간 풍향 및 풍속</div>
+            <div class="compass-body">
+              <div class="compass-dial">
+                <div class="compass-ring">
+                  <span class="dir-n">N</span>
+                  <span class="dir-e">E</span>
+                  <span class="dir-s">S</span>
+                  <span class="dir-w">W</span>
+                </div>
+                <div class="compass-needle" id="compassNeedle">
+                  <div class="needle-arrow"></div>
+                </div>
+                <div class="compass-center-info">
+                  <div class="compass-deg" id="compassDeg">--°</div>
+                  <div class="compass-dir-text" id="compassDirText">--</div>
+                </div>
+              </div>
+              <div class="wind-stats">
+                <div class="wind-speed-main">
+                  <span class="wind-val" id="valWindSpeed">--</span>
+                  <span class="wind-unit">m/s</span>
+                </div>
+                <div class="wind-beaufort" id="valBeaufort">풍급 대기 중</div>
+                <div class="curr-stat" id="currWrap">
+                  <div class="stat-sub-label"><i class="fa-solid fa-water"></i> 표면 유향 / 유속</div>
+                  <div class="stat-sub-val"><span id="valCurrDrc">--</span>° / <span id="valCurrSpeed">--</span> kn</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- WEATHER CARDS GRID -->
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div class="metric-icon icon-teal"><i class="fa-solid fa-temperature-half"></i></div>
+              <div class="metric-info">
+                <div class="metric-label">해수 수온</div>
+                <div class="metric-value"><span id="valWaterTemp">--</span> <small>℃</small></div>
+              </div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-icon icon-blue"><i class="fa-solid fa-cloud-sun"></i></div>
+              <div class="metric-info">
+                <div class="metric-label">대기 기온</div>
+                <div class="metric-value"><span id="valAirTemp">--</span> <small>℃</small></div>
+              </div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-icon icon-purple"><i class="fa-solid fa-gauge-high"></i></div>
+              <div class="metric-info">
+                <div class="metric-label">해면 기압</div>
+                <div class="metric-value"><span id="valPressure">--</span> <small>hPa</small></div>
+              </div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-icon icon-cyan"><i class="fa-solid fa-droplet"></i></div>
+              <div class="metric-info">
+                <div class="metric-label">상대 습도</div>
+                <div class="metric-value"><span id="valHumidity">--</span> <small>%</small></div>
+              </div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-icon icon-amber"><i class="fa-solid fa-eye"></i></div>
+              <div class="metric-info">
+                <div class="metric-label">해상 시정</div>
+                <div class="metric-value"><span id="valVisibility">--</span> <small>km</small></div>
+              </div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-icon icon-coral"><i class="fa-solid fa-water"></i></div>
+              <div class="metric-info">
+                <div class="metric-label">해수 염분 / 조위</div>
+                <div class="metric-value"><span id="valSalinity">--</span> <small id="valSalinityUnit">psu</small></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TIME SERIES CHART -->
+          <div class="weather-card chart-card">
+            <div class="chart-header">
+              <div class="card-head"><i class="fa-solid fa-chart-line"></i> 오늘 24시간 관측 추이</div>
+              <div class="chart-controls">
+                <div class="chart-tabs" id="chartTabs">
+                  <button class="chart-tab active" data-chart="wind">풍속</button>
+                  <button class="chart-tab" data-chart="wave"><i class="fa-solid fa-water"></i> 파고(m)</button>
+                  <button class="chart-tab" data-chart="temp">수온/기온</button>
+                  <button class="chart-tab" data-chart="pressure">기압</button>
+                </div>
+                <button id="btnDownloadCsv" class="btn-csv-export" title="오늘 관측 데이터 CSV 다운로드">
+                  <i class="fa-solid fa-file-arrow-down"></i> CSV
+                </button>
+              </div>
+            </div>
+            <div class="chart-wrapper">
+              <canvas id="weatherChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Custom App JS -->
+  <script src="app.js"></script>
+</body>
+</html>
