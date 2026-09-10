@@ -96,20 +96,85 @@ document.addEventListener("DOMContentLoaded", async () => {
 // ==========================================================================
 // Map Initialization (Leaflet)
 // ==========================================================================
+// Base Tile Layers
+let currentTileLayerGroup = null;
+let currentLayerType = "dark";
+const tileLayers = {};
+
 function initMap() {
   leafletMap = L.map("map", {
     center: [35.6, 127.8],
     zoom: 7,
+    maxZoom: 18,
     zoomControl: false,
     attributionControl: false
   });
 
   L.control.zoom({ position: "topright" }).addTo(leafletMap);
 
-  L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
-    maxZoom: 16,
-    attribution: "Esri, USGS, NOAA"
-  }).addTo(leafletMap);
+  // 1. Dark canvas with reference labels & boundaries
+  tileLayers.dark = L.layerGroup([
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
+      maxZoom: 16,
+      attribution: "Esri, USGS, NOAA"
+    }),
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}", {
+      maxZoom: 16,
+      attribution: "Esri"
+    })
+  ]);
+
+  // 2. High-precision OpenStreetMap with detailed harbors, breakwaters, coastal structures
+  tileLayers.osm = L.layerGroup([
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "© OpenStreetMap contributors"
+    })
+  ]);
+
+  // 3. High-resolution Satellite Imagery (shows real concrete piers, lighthouses & buoys)
+  tileLayers.satellite = L.layerGroup([
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+      maxZoom: 19,
+      attribution: "Esri, Maxar, Earthstar Geographics"
+    }),
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", {
+      maxZoom: 19,
+      attribution: "Esri"
+    })
+  ]);
+
+  // Default: Dark canvas
+  currentTileLayerGroup = tileLayers.dark;
+  currentTileLayerGroup.addTo(leafletMap);
+
+  // Initialize Layer Switcher
+  setupLayerSwitcher();
+}
+
+function setupLayerSwitcher() {
+  const switcher = document.getElementById("mapLayerSwitcher");
+  if (!switcher) return;
+
+  switcher.querySelectorAll(".layer-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const layerType = btn.getAttribute("data-layer");
+      if (layerType === currentLayerType) return;
+
+      switcher.querySelectorAll(".layer-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+
+      if (currentTileLayerGroup) {
+        leafletMap.removeLayer(currentTileLayerGroup);
+      }
+
+      if (tileLayers[layerType]) {
+        currentTileLayerGroup = tileLayers[layerType];
+        currentTileLayerGroup.addTo(leafletMap);
+        currentLayerType = layerType;
+      }
+    });
+  });
 }
 
 function resetMapView() {
@@ -179,7 +244,8 @@ function renderStationMarkers() {
         <div class="marker-inner"></div>
       `,
       iconSize: [24, 24],
-      iconAnchor: [12, 12]
+      iconAnchor: [12, 12],
+      popupAnchor: [0, -14]
     });
 
     const marker = L.marker([st.latitude, st.longitude], { icon: icon }).addTo(leafletMap);
@@ -284,8 +350,9 @@ async function selectStation(st) {
     }
   });
 
-  // Pan map to station smoothly
-  leafletMap.flyTo([st.latitude, st.longitude], 11, { duration: 0.8 });
+  // Pan map to station smoothly (preserve zoom if already zoomed in for detailed inspection)
+  const targetZoom = Math.max(leafletMap.getZoom(), 11);
+  leafletMap.flyTo([st.latitude, st.longitude], targetZoom, { duration: 0.8 });
 
   // Update Header details
   if (detailProviderEl) {

@@ -19,7 +19,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   
   <!-- Custom CSS -->
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
   <div class="app-container">
@@ -163,6 +163,17 @@
           <button id="btnResetView" class="map-tool-btn" title="전국 연안 전체 보기">
             <i class="fa-solid fa-expand"></i> 전체 지도
           </button>
+          <div class="map-layer-switcher" id="mapLayerSwitcher">
+            <button class="layer-btn active" data-layer="dark" title="다크 캔버스">
+              <i class="fa-solid fa-moon"></i> 다크
+            </button>
+            <button class="layer-btn" data-layer="osm" title="상세 일반지도 (방파제/등대 고해상도)">
+              <i class="fa-solid fa-map-location-dot"></i> 상세지도
+            </button>
+            <button class="layer-btn" data-layer="satellite" title="고해상도 위성영상">
+              <i class="fa-solid fa-satellite"></i> 위성영상
+            </button>
+          </div>
           <div class="map-legend">
             <span class="legend-item"><span class="legend-dot dot-kma"></span> 기상청 해양부이 (파고)</span>
             <span class="legend-item"><span class="legend-dot dot-khoa"></span> 해양조사원</span>
@@ -342,6 +353,6 @@
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <!-- Custom App JS -->
-  <script src="app.js"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>

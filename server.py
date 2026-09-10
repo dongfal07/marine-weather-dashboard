@@ -29,14 +29,14 @@ KHOA_API_KEY = os.environ.get("KHOA_API_KEY", "")
 # Simple memory cache for date / now requests
 cache = {}
 
-# Buoy metadata dictionary for quick lookups
 KMA_BUOY_NAMES = {
     "22101": "덕적도부이", "22102": "칠발도부이", "22103": "거문도부이",
     "22104": "거제도부이", "22105": "동해부이", "22106": "포항부이",
-    "22107": "마라도부이", "22108": "외연도부이", "21229": "울릉도부이",
-    "22183": "서해206부이", "22184": "서해170부이", "22185": "신안부이",
-    "22186": "추자도부이", "22187": "인천부이", "22188": "부안부이",
-    "22189": "통영부이", "22190": "울산부이"
+    "22107": "마라도부이", "22108": "외연도부이", "22109": "추자도부이",
+    "21229": "울릉도부이", "22184": "신안부이", "22185": "인천부이",
+    "22186": "부안부이", "22187": "서귀포부이", "22188": "통영부이",
+    "22189": "울산부이", "22190": "울진부이", "22191": "홍도부이",
+    "22192": "삼척부이", "22193": "가거도부이", "22194": "고성부이"
 }
 
 KHOA_NAMES = {
@@ -56,7 +56,7 @@ def generate_kma_simulated_now(stn_id, dt=None):
     rng = random.Random(seed_val)
 
     # Base wave height varies naturally by location (east coast / south coast deeper -> higher waves)
-    is_outer = stn_id in ["22105", "22107", "21229", "22183", "22184"]
+    is_outer = stn_id in ["22105", "22107", "21229", "22187", "22191", "22193"]
     base_wave = 1.6 if is_outer else 1.1
     hour_factor = math.sin((dt.hour + (stn_num % 5)) * math.pi / 6) * 0.4
     rand_wave = rng.uniform(-0.15, 0.25)
@@ -176,6 +176,12 @@ def generate_khoa_simulated_date(obs_code, date_str):
 class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=os.path.join(os.path.dirname(__file__), "public"), **kwargs)
+
+    def end_headers(self):
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
+        super().end_headers()
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
